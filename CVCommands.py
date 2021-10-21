@@ -5,7 +5,7 @@ import sys
 import random
 from os import path
 from simple_pid import PID
-from tqdm import tqdm, trange
+from tqdm.auto import tqdm
 from datetime import datetime
 
 def SMU_configure():
