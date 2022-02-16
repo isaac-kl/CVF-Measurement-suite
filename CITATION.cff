@@ -3,12 +3,12 @@ message: "If you use this software, please cite it as below."
 authors:
 - family-names: "Lam"
   given-names: "Isaac"
-  orcid: ""
+  orcid: " https://orcid.org/0000-0001-9800-2765"
 - family-names: "Kuba"
   given-names: "Austin"
-  orcid: ""
+  orcid: " https://orcid.org/0000-0001-6500-2646"
 title: "CVF-Measurement-suite"
 version: 1.0.0
 doi: 
-date-released: 2022-02-16
+date-released: 2021-10-14
 url: "https://github.com/isaac-kl/CVF-Measurement-suite"
