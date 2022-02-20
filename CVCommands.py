@@ -9,6 +9,7 @@ from tqdm.auto import tqdm
 from datetime import datetime
 
 def SMU_configure():
+    SMU.write('*RST')
     SMU.write(':SYST:BEEP 1e6, .5')
     SMU.write(':ROUT:TERM REAR')
 
