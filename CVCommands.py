@@ -3,10 +3,60 @@ import time
 import pandas as pd
 import sys
 import random
+import pyvisa
+from pyvisa import ResourceManager, constants
+from usb.core import find as finddev
 from os import path
 from simple_pid import PID
 from tqdm.auto import tqdm
 from datetime import datetime
+
+def inst_connect(SMUon, DMMon, LCRon, AFGon):
+    
+    global DMM, AFG, LCR, SMU
+    
+    try:
+        if DMMon:
+            DMM.query('*IDN?')
+        if AFGon:
+            AFG.query('*IDN?')
+    except:
+        rm = pyvisa.ResourceManager()
+        #DMMdev = finddev(idVendor=0x05e6, idProduct=0x2100) #Device ID for DMM
+        if DMMon:
+            DMMdev = finddev(idVendor=0x05e6, idProduct=0x2110) #Device ID for DMM
+            DMMdev.reset()
+        if AFGon:
+            AFGdev = finddev(idVendor=0x0699, idProduct=0x0353)
+            AFGdev.reset()
+
+
+        if DMMon:
+            DMM = rm.open_resource('USB0::1510::8464::8003547::0::INSTR')
+            print('DMM connected')
+        else:
+            DMM = False
+        if AFGon:
+            AFG = rm.open_resource('USB0::1689::851::2001172::0::INSTR')
+            print('AFG connected')
+        else:
+            AFG = False
+        if LCRon:
+            LCR = rm.open_resource('GPIB0::17::INSTR')
+            print('LCR connected')
+        else:
+            LCR = False
+        if SMUon:
+            SMU = rm.open_resource('GPIB0::24::INSTR')
+            print('SMU connected')
+        else:
+            SMU = False
+
+        SMU_configure()
+        playstair()
+        playon()
+
+    return SMU, DMM, LCR, AFG
 
 def SMU_configure():
     SMU.write('*RST')
@@ -137,6 +187,7 @@ def set_oscVolt(volt):
 
     print('AC Voltage set to '+str(round(volt,3))+'V                        ',end='\r')
 
+
 #Sets DC bias (volt = setpoint voltage in V, outp_on = print output on or off Bool)
 def setBias(volt,outp_on,fastScan):
     if fastScan == False:
@@ -147,7 +198,12 @@ def setBias(volt,outp_on,fastScan):
         SMU.write(':SENS:CURR:PROT 1E-1')
         SMU.write(':SENS:FUNC \"CURR\"')
         SMU.write(':SENS:CURR:RANG 1E-1')
-
+        
+        if volt >= 0:
+            volt = volt + offset
+        else:
+            volt = volt - offset
+        
         mv_avg = [99]*(mvavg_num-1)
 
         SMU.write(':OUTP 1')
@@ -159,7 +215,7 @@ def setBias(volt,outp_on,fastScan):
             try:
                 measvolt = float(DMM.query(':READ?'))
             except ValueError:
-                pass
+                measvolt = 0
 
             if outp_on is True:
                 print('V = '+str(measvolt)+',   V_SMU = '+str(float(SMU.query(':SOUR:VOLT?')))+'V                               ',end='\r')
@@ -304,4 +360,47 @@ def offBias():
     SMU.write(':OUTP 0')
     DMM.write('SYST:LOC')
     playoff()
-
+    
+def checkContact():
+    SMU.write(':SOUR:FUNC VOLT')
+    SMU.write(':SOUR:VOLT:MODE FIXED')
+    SMU.write(':SOUR:VOLT:RANG 40')
+    #SMU.write(':SOUR:VOLT:LEV '+str(volt-reset_i))
+    SMU.write(':SENS:CURR:PROT 1E-1')
+    SMU.write(':SENS:FUNC \"CURR\"')
+    SMU.write(':SENS:CURR:RANG 1E-1')
+    
+    SMU.write(':SOUR:VOLT:LEV '+str(1))
+    SMU.write(':OUTP 1')
+    time.sleep(1)
+    if float(DMM.query(':READ?')) > 0.1:
+        print('Forward V check GOOD')
+    else:
+        SMU.write(':OUTP 0')
+        DMM.write('SYST:LOC')
+        playrand(5,.1)
+        raise Exception("Contact error, check device leads")
+    
+    SMU.write(':SOUR:VOLT:LEV '+str(-1))
+    
+    time.sleep(1)
+    if float(DMM.query(':READ?')) < 0.1:
+        print('Reverse V check GOOD')
+    else:
+        SMU.write(':OUTP 0')
+        DMM.write('SYST:LOC')
+        playrand(5,.1)
+        raise Exception("Contact error, check device leads")
+        
+    SMU.write(':OUTP 0')
+    DMM.write('SYST:LOC')
+    
+def check_fastCV_Vpp(Vmin, Vmax):
+    if Vmin >= Vmax:
+        raise Exception("Vmin cannot be greater than Vmax")
+    elif Vmin < -5:
+        raise Exception("Vmin exceeds lower V limit (-5 ≤ V ≤ 5)")
+    elif Vmax > 5:
+        raise Exception("Vmin exceeds lower V limit (-5 ≤ V ≤ 5)")
+    else:
+        pass
